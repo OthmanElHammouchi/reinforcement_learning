@@ -1,12 +1,12 @@
 import gym
 import numpy as np
 
-env = gym.make("FrozenLake8x8-v1", desc=None, map_name=None).env
+env = gym.make("FrozenLake8x8-v1", desc= None, map_name=None, is_slippery = False).env
 
 alpha = 0.999
 n_actions = env.nA
 n_states = env.nS
-eps = 1e-3
+eps = 0.1
 
 P = np.zeros((n_actions, n_states, n_states))
 R = np.zeros((n_actions, n_states, n_states))
@@ -19,40 +19,33 @@ for a in range(n_actions):
 
 def vi(P, R, alpha, eps = 1e-3, v0 = None):
     
-    # get state space and action set sizes
+    #get state space and action set sizes
     n_states = P.shape[1]
     n_actions = P.shape[0]
 
-    # initialise value vector if not given
+    #initialise value vector
     if v0 is None:
         v0 = np.zeros(n_states)
+    v = v0
     
-    # set initial values for main loop
-    v = v0  
+    #set initial values for difference and tolerance
     diff = np.inf
     tol = (1 - alpha)*eps/(2*alpha)
 
     # main loop
     while(diff > tol):
-
-        # generate next iterate
         v_new = np.zeros(n_states)
         for state in range(n_states):
-            candidates = np.zeros(n_actions)
-            for action in range(n_actions):
-                candidates[action] = np.sum(P[action, state, :] *(R[action, state, :] + alpha*v))
-            v_new[state] = np.max(candidates)
-        
+            #compute RHS of Bellman equation with current policy for all action and take max to get next iterate
+            v_new[state] = np.max(np.sum(P[:, state, :]*(R[:, state, :] + alpha*v), axis = 1), axis=0)
+        #update current difference       
         diff = np.max(np.abs(v_new - v))
         v = v_new
     
-    # compute policy corresponding to last iterate
+    #compute policy corresponding to value vector
     policy = np.zeros(n_states)
     for state in range(n_states):
-        candidates = np.zeros(n_actions)
-        for action in range(n_actions):
-            candidates[action] = np.sum(P[action, state, :]*(R[action, state, :] + alpha*v))
-        policy[state] = np.argmax(candidates)
+        policy[state] = np.argmax(np.sum(P[:, state, :]*(R[:, state, :] + alpha*v), axis=1), axis=0)
     return v, policy
 
 v, policy = vi(P, R, alpha, eps)
@@ -75,6 +68,14 @@ for n in range(n_sim):
 
 print('Success rate: ', n_successes/n_sim)
 
+
+state = env.reset()
+while True:
+    env.render()
+    action = int(policy[state])
+    state, reward, done, _ = env.step(action)
+    if done:
+        break
 
 import mdptoolbox
 

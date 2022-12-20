@@ -19,11 +19,14 @@ np.seterr('raise')
 
 #################### stochastic environment ####################
 
-rand_env = gym.make("FrozenLake8x8-v1", desc = None, map_name = None, is_slippery=True, render_mode = "ansi").env
+rand_env = gym.make("FrozenLake8x8-v1", desc = None, map_name = None, is_slippery=True).env
 
 alpha = 0.999
 
-Q, policy = learn_policy(rand_env, alpha, n_runs = int(1e4), q_init=10, omega = 0.7, epsilon=0.5, K=5000)
+# decay_schedule = lambda t: poly_schedule(t, 0.51)
+decay_schedule = KSchedule(0.51, 5000)
+
+Q, policy = learn_policy(rand_env, alpha, decay_schedule, n_runs = int(1e5), q_init=0)
 
 sim_policy(rand_env, policy)
 

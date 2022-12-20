@@ -2,41 +2,33 @@ import numpy as np
 import gym
 import scipy.optimize as optimize
 
-def learn_policy(env, alpha, n_runs=int(1e3), q_init=1, omega=0.75, epsilon=0, K=1):
-
-    assert omega < 1 and omega > 0.5
+def learn_policy(env, alpha, decay_schedule, n_runs=int(1e3), q_init=1):
 
     n_states = env.observation_space.n
     n_actions = env.action_space.n
 
     Q = q_init*np.ones((n_states, n_actions))
 
-    for t in range(n_runs):
+    for i in range(n_runs):
     
-        state_process = np.zeros(n_runs + 1, dtype=int)
-        action_process = np.zeros(n_runs, dtype=int)
-
-        state_process[0], _ = env.reset()
+        state_process = list()
+        action_process = list()
+        state_process.append(env.reset())
         t = 0
         done = False
 
-        min_t = 0
-        small_enough = False
-
-        while not small_enough:
-            min_t+=1
-            small_enough = K/(min_t+K) < 1
-
         while not done:
-            
-            learning_rate = K/(min_t + t + K)#**omega
 
-            if np.random.uniform() <= 1 - epsilon:
-                action_process[t] = np.argmax(Q[state_process[t], :])
+            learning_rate = decay_schedule(1 + t)
+
+            if (np.max(Q[state_process[t], :]) - np.min(Q[state_process[t], :])) < 1e-7:
+                action_process.append(np.random.choice(range(n_actions)))
             else:
-                action_process[t] = np.random.choice(range(n_actions))
+                action_process.append(np.argmax(Q[state_process[t], :]))
         
-            state_process[t + 1], reward, done, _ , _ = env.step(action_process[t])
+            next_state, reward, done, _ = env.step(action_process[t])
+
+            state_process.append(next_state)
 
             Q[state_process[t], action_process[t]] = (1 - learning_rate)*Q[state_process[t], action_process[t]] + learning_rate * (reward + alpha*np.max(Q[state_process[t + 1], :]))
 
@@ -45,7 +37,6 @@ def learn_policy(env, alpha, n_runs=int(1e3), q_init=1, omega=0.75, epsilon=0, K
     policy = np.array([np.argmax(Q[state, :]) for state in range(n_states)])
 
     return(Q, policy)
-
 
 
 def gen_rand_policy(env):
@@ -59,13 +50,13 @@ def gen_rand_policy(env):
 
 def sim_policy(env, policy, n_sim=int(1e3)):
 
-    state, _ = env.reset()
+    state = env.reset()
 
     for i in range(n_sim):
 
         print(env.render())
 
-        state, reward, done, _, _ = env.step(policy[int(state)])
+        state, reward, done, _ = env.step(policy[int(state)])
         
         if done:
             
@@ -84,12 +75,35 @@ def eval_policy(env, policy, n_runs=int(1e3)):
 
     for i in range(n_runs):
 
-        state, _ = env.reset()
+        state = env.reset()
         done = False
         
         while not done:
-            state, reward, done, _, _ = env.step(policy[int(state)])
+            state, reward, done, _ = env.step(policy[int(state)])
             if state == 63:
                 n_successes += 1
         
     return(n_successes/n_runs)
+
+class KSchedule:
+
+    def __init__(self, omega, K):
+        assert omega <= 1 and omega > 0.5
+        self.omega = omega
+        self.K = K
+
+        self.min_t = 0
+        done = False
+
+        while not done:
+            self.min_t += 1
+            done = self.K/(self.min_t + self.K)**self.omega < 1
+
+
+    def __call__(self, t):
+        return(self.K/(self.min_t + t - 1 + self.K)**self.omega)
+
+def poly_schedule(t, omega):
+    assert omega <= 1 and omega > 0.5
+    return(1/t**omega)
+

@@ -1,42 +1,62 @@
 import numpy as np
-import gym
-import scipy.optimize as optimize
+import time
 
-def learn_policy(env, alpha, decay_schedule, n_runs=int(1e3), q_init=1):
+def learn_policy(env, alpha, K, max_runs=int(1e6), q_init=1, time_delta=3):
 
     n_states = env.observation_space.n
     n_actions = env.action_space.n
 
     Q = q_init*np.ones((n_states, n_actions))
+    old_Q = Q
 
-    for i in range(n_runs):
+    start_time = time.time()
+    dt = 0
+
+    run = 0
+    while run <= max_runs:
+
+        if run % int(1e3) == 0:
+            end_time = time.time()
+            dt = end_time - start_time
+            start_time = time.time()
+            print(run)
+
+        if dt > time_delta:
+            break
     
-        state_process = list()
-        action_process = list()
-        state_process.append(env.reset())
+        state_process = np.zeros(int(1e7), dtype=int)
+        action_process = np.zeros(int(1e7), dtype=int)
+        state_process[0] = env.reset()
         t = 0
+        
         done = False
-
         while not done:
 
-            learning_rate = decay_schedule(1 + t)
+            learning_rate = K/(t+K)
 
-            if (np.max(Q[state_process[t], :]) - np.min(Q[state_process[t], :])) < 1e-7:
-                action_process.append(np.random.choice(range(n_actions)))
+            if np.linalg.norm(Q[state_process[t], 0] - Q[state_process[t], :]) < 1e-7:
+                action_process[t] = np.random.choice(range(n_actions))
             else:
-                action_process.append(np.argmax(Q[state_process[t], :]))
+                action_process[t] = np.argmax(Q[state_process[t], :])
         
             next_state, reward, done, _ = env.step(action_process[t])
 
-            state_process.append(next_state)
+            state_process[t+1] = next_state
 
             Q[state_process[t], action_process[t]] = (1 - learning_rate)*Q[state_process[t], action_process[t]] + learning_rate * (reward + alpha*np.max(Q[state_process[t + 1], :]))
 
             t += 1
 
+        run += 1
+
+        if not (Q == old_Q).all() and np.linalg.norm(Q - old_Q) < 1e-10:
+            break
+
+        old_Q = Q
+
     policy = np.array([np.argmax(Q[state, :]) for state in range(n_states)])
 
-    return(Q, policy)
+    return(policy)
 
 
 def gen_rand_policy(env):

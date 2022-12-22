@@ -24,10 +24,12 @@ rand_env = gym.make("FrozenLake8x8-v1", desc = None, map_name = None, is_slipper
 alpha = 0.999
 
 # decay_schedule = lambda t: poly_schedule(t, 0.51)
-decay_schedule = KSchedule(0.51, 5000)
+# decay_schedule = KSchedule(1, 50000)
 
-Q, policy = learn_policy(rand_env, alpha, decay_schedule, n_runs = int(1e5), q_init=0)
+policy = learn_policy(rand_env, alpha, K=5000, q_init=0, time_delta = 20)
 
 sim_policy(rand_env, policy)
 
 eval_policy(rand_env, policy)
+
+    
